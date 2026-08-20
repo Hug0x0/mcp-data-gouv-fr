@@ -255,6 +255,125 @@ server.tool(
   })
 );
 
+server.tool(
+  'data_gouv_fr_search_organizations',
+  'Search data.gouv.fr organizations and producers. Useful to find certified public producers such as Etalab, INSEE, IGN, ministries, regions, departments, or municipalities.',
+  {
+    query: z.string().describe('Organization search query, e.g. "insee", "etalab", "ign", "réunion".'),
+    page_size: z.number().int().min(1).max(50).default(10).describe('Number of organizations to return.'),
+  },
+  async ({ query, page_size }) => {
+    try {
+      const url = new URL('https://www.data.gouv.fr/api/1/organizations/');
+      url.searchParams.set('q', query);
+      url.searchParams.set('page_size', String(page_size));
+      const data = await fetchJson<{ data?: Array<Record<string, unknown>>; total?: number }>(url.toString());
+      return jsonResult({
+        query,
+        total: data.total,
+        organizations: (data.data ?? []).map((organization) => ({
+          id: organization.id,
+          slug: organization.slug,
+          name: organization.name,
+          acronym: organization.acronym,
+          page: organization.page,
+          badges: organization.badges,
+          datasets: organization.metrics && typeof organization.metrics === 'object'
+            ? (organization.metrics as Record<string, unknown>).datasets
+            : undefined,
+        })),
+      });
+    } catch (error) {
+      return errorResult(error instanceof Error ? error.message : 'Failed to search organizations');
+    }
+  }
+);
+
+server.tool(
+  'data_gouv_fr_search_dataservices',
+  'Search the data.gouv.fr public API / dataservice catalog. Useful to discover reusable French public APIs by topic.',
+  {
+    query: z.string().describe('Dataservice search query, e.g. "transport", "adresse", "géorisques".'),
+    page_size: z.number().int().min(1).max(50).default(10).describe('Number of dataservices to return.'),
+  },
+  async ({ query, page_size }) => {
+    try {
+      const url = new URL('https://www.data.gouv.fr/api/1/dataservices/');
+      url.searchParams.set('q', query);
+      url.searchParams.set('page_size', String(page_size));
+      const data = await fetchJson<{ data?: Array<Record<string, unknown>>; total?: number }>(url.toString());
+      return jsonResult({
+        query,
+        total: data.total,
+        dataservices: (data.data ?? []).map((service) => ({
+          id: service.id,
+          slug: service.slug,
+          title: service.title,
+          acronym: service.acronym,
+          page: service.page,
+          api_url: service.base_api_url,
+          availability: service.availability,
+          organization: service.organization && typeof service.organization === 'object'
+            ? (service.organization as Record<string, unknown>).name
+            : undefined,
+        })),
+      });
+    } catch (error) {
+      return errorResult(error instanceof Error ? error.message : 'Failed to search dataservices');
+    }
+  }
+);
+
+server.tool(
+  'data_gouv_fr_list_dataset_resources',
+  'List resources/files for a data.gouv.fr dataset, optionally filtered by format. Use after data_gouv_fr_get_dataset when the agent needs direct CSV/API/file URLs.',
+  {
+    dataset: z.string().describe('Dataset slug or id.'),
+    format: z.string().optional().describe('Optional resource format filter, e.g. "csv", "json", "shp", "xlsx", "api".'),
+    limit: z.number().int().min(1).max(100).default(25).describe('Max resources to return.'),
+  },
+  async ({ dataset, format, limit }) => {
+    try {
+      const url = `https://www.data.gouv.fr/api/1/datasets/${encodeURIComponent(dataset)}/`;
+      const data = await fetchJson<Record<string, unknown>>(url);
+      const resources = Array.isArray(data.resources) ? data.resources : [];
+      const normalizedFormat = format?.toLowerCase();
+      return jsonResult({
+        dataset: {
+          id: data.id,
+          slug: data.slug,
+          title: data.title,
+          page: data.page,
+        },
+        format: normalizedFormat ?? 'all',
+        resources: resources
+          .filter((resource) => {
+            if (!normalizedFormat) return true;
+            const resourceFormat = String(resource.format ?? '').toLowerCase();
+            const resourceType = String(resource.type ?? '').toLowerCase();
+            return resourceFormat === normalizedFormat || resourceType.includes(normalizedFormat);
+          })
+          .slice(0, limit)
+          .map((resource) => ({
+            id: resource.id,
+            title: resource.title,
+            description: resource.description,
+            type: resource.type,
+            format: resource.format,
+            url: resource.url,
+            latest: resource.latest,
+            filesize: resource.filesize,
+            checksum: resource.checksum,
+            created_at: resource.created_at,
+            last_modified: resource.last_modified,
+          })),
+      });
+    } catch (error) {
+      return errorResult(error instanceof Error ? error.message : 'Failed to list dataset resources');
+    }
+  }
+);
+
 async function main(): Promise<void> {
   await server.connect(new StdioServerTransport());
   console.error(`${CONFIG.name} running on stdio`);
