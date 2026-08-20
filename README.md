@@ -61,6 +61,8 @@ This MCP helps agents discover and summarize public sources. It is not an offici
 
 The repo includes `Dockerfile` and `glama.json`.
 
+Publishing notes: [`docs/publishing.md`](docs/publishing.md).
+
 Build steps:
 
 ```json

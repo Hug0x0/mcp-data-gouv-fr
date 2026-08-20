@@ -39,5 +39,16 @@
     "tsx": "^4.20.4",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Hug0x0/mcp-data-gouv-fr.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Hug0x0/mcp-data-gouv-fr/issues"
+  },
+  "homepage": "https://github.com/Hug0x0/mcp-data-gouv-fr#readme",
+  "publishConfig": {
+    "access": "public"
   }
 }
