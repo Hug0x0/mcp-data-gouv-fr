@@ -374,6 +374,59 @@ server.tool(
   }
 );
 
+server.tool(
+  'data_gouv_fr_preview_resource',
+  'Fetch a small preview from a data.gouv.fr dataset resource URL. Designed for CSV/JSON/text samples, not large downloads.',
+  {
+    dataset: z.string().describe('Dataset slug or id.'),
+    resource_id: z.string().describe('Resource id from data_gouv_fr_list_dataset_resources.'),
+    max_chars: z.number().int().min(200).max(20000).default(4000).describe('Maximum characters to return.'),
+  },
+  async ({ dataset, resource_id, max_chars }) => {
+    try {
+      const datasetUrl = `https://www.data.gouv.fr/api/1/datasets/${encodeURIComponent(dataset)}/`;
+      const data = await fetchJson<Record<string, unknown>>(datasetUrl);
+      const resources = Array.isArray(data.resources) ? data.resources : [];
+      const resource = resources.find((item) => item.id === resource_id);
+      if (!resource) {
+        return errorResult(`Resource ${resource_id} not found in dataset ${dataset}`);
+      }
+      const resourceUrl = String(resource.url ?? '');
+      if (!resourceUrl.startsWith('http://') && !resourceUrl.startsWith('https://')) {
+        return errorResult(`Resource ${resource_id} does not expose an HTTP URL`);
+      }
+      const response = await fetch(resourceUrl, {
+        headers: {
+          Accept: 'text/csv,application/json,text/plain,*/*',
+          'User-Agent': `${CONFIG.name}/0.1 (+https://github.com/Hug0x0/${CONFIG.name})`,
+        },
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status} while fetching ${resourceUrl}`);
+      }
+      const text = await response.text();
+      return jsonResult({
+        dataset: {
+          id: data.id,
+          slug: data.slug,
+          title: data.title,
+        },
+        resource: {
+          id: resource.id,
+          title: resource.title,
+          format: resource.format,
+          type: resource.type,
+          url: resourceUrl,
+        },
+        truncated: text.length > max_chars,
+        preview: text.slice(0, max_chars),
+      });
+    } catch (error) {
+      return errorResult(error instanceof Error ? error.message : 'Failed to preview resource');
+    }
+  }
+);
+
 async function main(): Promise<void> {
   await server.connect(new StdioServerTransport());
   console.error(`${CONFIG.name} running on stdio`);

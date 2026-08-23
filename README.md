@@ -17,6 +17,7 @@ French open-data discovery, datasets, resources, organizations, and public API c
 - `data_gouv_fr_search_organizations`
 - `data_gouv_fr_search_dataservices`
 - `data_gouv_fr_list_dataset_resources`
+- `data_gouv_fr_preview_resource`
 
 ## Install
 
